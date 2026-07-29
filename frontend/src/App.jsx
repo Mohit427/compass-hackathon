@@ -1,11 +1,29 @@
 import { useState } from 'react';
 import { getScore } from './api';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import './App.css';
 
+// Pre-loaded data for a smooth demo presentation
+const sampleApplicants = {
+  good: { income: 85000, loanAmount: 15000 },
+  risky: { income: 30000, loanAmount: 45000 }
+};
+
 function App() {
+  const [income, setIncome] = useState('');
+  const [loanAmount, setLoanAmount] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+
+  const handleSampleChange = (e) => {
+    const selected = e.target.value;
+    if (sampleApplicants[selected]) {
+      setIncome(sampleApplicants[selected].income);
+      setLoanAmount(sampleApplicants[selected].loanAmount);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -13,7 +31,8 @@ function App() {
     setError(null);
 
     try {
-      const data = await getScore({}); // We will wire up actual form state next
+      // We pass the actual form data here, even though our current mock API ignores it
+      const data = await getScore({ income, loanAmount });
       setResult(data);
     } catch (err) {
       setError("Failed to fetch applicant score. Please try again.");
@@ -29,10 +48,9 @@ function App() {
       <section className="input-section">
         <h2>Applicant Details</h2>
 
-        {/* Demo Toggle for Presentation */}
         <div className="demo-controls">
           <label htmlFor="sample-applicant">Load Sample Data: </label>
-          <select id="sample-applicant" defaultValue="">
+          <select id="sample-applicant" defaultValue="" onChange={handleSampleChange}>
             <option value="" disabled>Select Applicant...</option>
             <option value="good">Applicant A (Healthy Cash Flow)</option>
             <option value="risky">Applicant B (Irregular Filings)</option>
@@ -41,20 +59,32 @@ function App() {
 
         <form onSubmit={handleSubmit}>
           <div>
-            <label>Income: <input type="number" name="income" required /></label>
+            <label>Income:
+              <input
+                type="number"
+                value={income}
+                onChange={(e) => setIncome(e.target.value)}
+                required
+              />
+            </label>
           </div>
           <div>
-            <label>Loan Amount: <input type="number" name="loanAmount" required /></label>
+            <label>Loan Amount:
+              <input
+                type="number"
+                value={loanAmount}
+                onChange={(e) => setLoanAmount(e.target.value)}
+                required
+              />
+            </label>
           </div>
           <button type="submit">Get Score</button>
         </form>
       </section>
 
-      {/* Resilient Loading and Error Handling */}
       {loading && <p role="status">Analyzing alternate data...</p>}
       {error && <p role="alert">{error}</p>}
 
-      {/* Results Dashboard */}
       {result && !loading && (
         <section className="results-section">
           <h2>Risk Breakdown</h2>
@@ -74,8 +104,15 @@ function App() {
           </ul>
 
           {/* Recharts Mount Point */}
-          <div className="chart-container">
-            <p><em>SHAP visualization chart will mount here</em></p>
+          <div className="chart-container" style={{ width: '100%', height: 300, marginTop: '20px' }}>
+            <ResponsiveContainer>
+              <BarChart data={result.top_factors} layout="vertical" margin={{ left: 50 }}>
+                <XAxis type="number" />
+                <YAxis dataKey="feature" type="category" width={150} />
+                <Tooltip />
+                <Bar dataKey="impact" fill="#4f46e5" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
