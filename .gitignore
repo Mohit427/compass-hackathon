@@ -1,0 +1,4 @@
+# Data module (Mohit) - raw/processed data is regenerated locally, not committed.
+# See data/README.md for exact regeneration commands.
+data/raw/*.csv
+data/processed/*.csv
