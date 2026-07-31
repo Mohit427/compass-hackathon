@@ -41,7 +41,8 @@ function App() {
         revenue_trend_slope: inc > 50000 ? 0.08 : -0.02,
         bill_punctuality: 0.92,
         gst_regularity: 0.88,
-        ext_source_avg: 0.74
+        ext_source_avg: 0.74,
+        employment_stability: inc > 50000 ? 7.5 : 1.5
       };
 
       // Send the properly mapped schema to the backend
