@@ -30,7 +30,22 @@ function App() {
     setError(null);
 
     try {
-      const data = await getScore({ income, loanAmount });
+      const inc = Number(income);
+      const loan = Number(loanAmount);
+
+      // Transform raw inputs into the exact Pydantic schema Tharanesh expects
+      const mlPayload = {
+        income_ratio: loan > 0 ? parseFloat((inc / loan).toFixed(2)) : 1.0,
+        // Generating realistic mock metrics for the remaining required features
+        cash_flow_stability: inc > 50000 ? 0.85 : 0.45,
+        revenue_trend_slope: inc > 50000 ? 0.08 : -0.02,
+        bill_punctuality: 0.92,
+        gst_regularity: 0.88,
+        ext_source_avg: 0.74
+      };
+
+      // Send the properly mapped schema to the backend
+      const data = await getScore(mlPayload);
       setResult(data);
     } catch (err) {
       setError("Failed to fetch applicant score. Please try again.");
