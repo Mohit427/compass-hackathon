@@ -8,6 +8,31 @@ const sampleApplicants = {
   risky: { income: 30000, loanAmount: 45000 }
 };
 
+const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
+const lerp = (healthy, risky, riskFactor) => healthy + (risky - healthy) * riskFactor;
+
+// Demo-only mock: derives every ML feature from a single risk factor driven by
+// BOTH the loan-to-income ratio and absolute income, so a loan that dwarfs income
+// pushes every feature toward "risky" together instead of only income_ratio moving.
+const buildMockFeatures = (inc, loan) => {
+  const debtToIncome = inc > 0 ? loan / inc : loan > 0 ? Infinity : 0;
+  const debtRisk = clamp01((debtToIncome - 0.3) / (5 - 0.3));
+  const incomeRisk = clamp01((60000 - inc) / 60000);
+  // Eased (not linear): the model's dominant feature (ext_source_avg) only moves
+  // risk meaningfully below ~0.5, so moderate scenarios need to push further in.
+  const riskFactor = Math.pow(Math.max(debtRisk, incomeRisk), 0.6);
+
+  return {
+    income_ratio: loan > 0 ? parseFloat((inc / loan).toFixed(2)) : 1.0,
+    cash_flow_stability: parseFloat(lerp(0.9, 0.3, riskFactor).toFixed(2)),
+    revenue_trend_slope: parseFloat(lerp(0.1, -0.4, riskFactor).toFixed(2)),
+    bill_punctuality: parseFloat(lerp(0.95, 0.25, riskFactor).toFixed(2)),
+    gst_regularity: parseFloat(lerp(0.9, 0.2, riskFactor).toFixed(2)),
+    ext_source_avg: parseFloat(lerp(0.8, 0.2, riskFactor).toFixed(2)),
+    employment_stability: parseFloat(lerp(8, 1, riskFactor).toFixed(1)),
+  };
+};
+
 function App() {
   const [income, setIncome] = useState('');
   const [loanAmount, setLoanAmount] = useState('');
@@ -34,16 +59,7 @@ function App() {
       const loan = Number(loanAmount);
 
       // Transform raw inputs into the exact Pydantic schema Tharanesh expects
-      const mlPayload = {
-        income_ratio: loan > 0 ? parseFloat((inc / loan).toFixed(2)) : 1.0,
-        // Generating realistic mock metrics for the remaining required features
-        cash_flow_stability: inc > 50000 ? 0.85 : 0.45,
-        revenue_trend_slope: inc > 50000 ? 0.08 : -0.02,
-        bill_punctuality: 0.92,
-        gst_regularity: 0.88,
-        ext_source_avg: 0.74,
-        employment_stability: inc > 50000 ? 7.5 : 1.5
-      };
+      const mlPayload = buildMockFeatures(inc, loan);
 
       // Send the properly mapped schema to the backend
       const data = await getScore(mlPayload);
