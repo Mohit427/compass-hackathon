@@ -1,17 +1,25 @@
 // src/api.js
 
 export const getScore = async (applicantData) => {
-    // Simulating a 1.5-second network delay for realism
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+        // Point this URL to Tharanesh's FastAPI server
+        const response = await fetch('http://localhost:8000/score', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            // Passing the income and loanAmount from your React state
+            body: JSON.stringify(applicantData),
+        });
 
-    // Frozen Contract C - Exact shape Tharanesh's backend will return
-    return {
-        "score": 720,
-        "default_probability": 0.042,
-        "risk_tier": "Low",
-        "top_factors": [
-            { "feature": "Cash flow stability", "impact": 0.31 },
-            { "feature": "GST filing regularity", "impact": 0.18 }
-        ]
-    };
+        if (!response.ok) {
+            throw new Error(`Backend error: ${response.status} ${response.statusText}`);
+        }
+
+        // Returns the data matching Contract C
+        return await response.json();
+    } catch (error) {
+        console.error("Error fetching score from backend:", error);
+        throw error;
+    }
 };
