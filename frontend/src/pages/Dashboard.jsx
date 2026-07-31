@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { getScore } from '../api';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -33,18 +33,13 @@ const buildMockFeatures = (inc, loan) => {
   };
 };
 
-function Dashboard({ onBack }) {
-  const [theme, setTheme] = useState(() => localStorage.getItem('dashboard-theme') || 'light');
+function Dashboard({ onBack, theme, onToggleTheme }) {
   const [income, setIncome] = useState('');
   const [loanAmount, setLoanAmount] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
-
-  useEffect(() => {
-    localStorage.setItem('dashboard-theme', theme);
-  }, [theme]);
 
   const isDark = theme === 'dark';
 
@@ -102,7 +97,7 @@ function Dashboard({ onBack }) {
             </button>
 
             <button
-              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              onClick={onToggleTheme}
               aria-label="Toggle dark mode"
               className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
