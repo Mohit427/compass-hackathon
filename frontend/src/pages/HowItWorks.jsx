@@ -27,7 +27,7 @@ const SIGNALS = [
   {
     name: 'External Credit Score',
     summary: "An independent, third-party read on the applicant's creditworthiness.",
-    detail: "Similar to a traditional bureau credit score, blended in alongside Compass's own alternative-data signals rather than relied on alone.",
+    detail: "Similar to a traditional bureau credit score, blended in alongside Credit Lens's own alternative-data signals rather than relied on alone.",
   },
   {
     name: 'Employment / Business Stability',
@@ -43,7 +43,7 @@ const OUTPUTS = [
   },
   {
     name: 'Default Probability',
-    detail: "Compass's estimate of how likely the applicant is to fail to repay the loan, shown as a percentage. Lower is better.",
+    detail: "Credit Lens's estimate of how likely the applicant is to fail to repay the loan, shown as a percentage. Lower is better.",
   },
   {
     name: 'Risk Tier',
@@ -51,7 +51,7 @@ const OUTPUTS = [
   },
   {
     name: 'Top Contributing Factors',
-    detail: "The signals that mattered most to Compass's assessment for this applicant, so a lender can see why a score came out the way it did — not just the number itself.",
+    detail: "The signals that mattered most to Credit Lens's assessment for this applicant, so a lender can see why a score came out the way it did — not just the number itself.",
   },
 ];
 
@@ -64,7 +64,7 @@ const GLOSSARY = [
   { term: 'Default Probability', def: "An estimate of how likely an applicant is to default, shown as a percentage." },
   { term: 'GST (Goods and Services Tax)', def: 'A tax businesses file regularly. How consistently a business files is used here as a proxy for how organized and compliant it is.' },
   { term: 'Risk Tier', def: 'A Low / Medium / High category summarizing an applicant’s estimated risk, derived from their default probability.' },
-  { term: 'SME (Small and Medium Enterprise)', def: 'A small or medium-sized business — the kind of applicant Compass is built for.' },
+  { term: 'SME (Small and Medium Enterprise)', def: 'A small or medium-sized business — the kind of applicant Credit Lens is built for.' },
   { term: 'Underwriting', def: 'The process a lender uses to decide whether — and on what terms — to approve a loan.' },
   { term: 'UPI (Unified Payments Interface)', def: 'A widely used real-time payment system in India. UPI transaction history is one of the "alternative data" sources this kind of model can draw on.' },
 ];
@@ -84,9 +84,9 @@ function HowItWorks({ onBack, onTryDashboard }) {
         </div>
 
         <header className="text-center space-y-3">
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">How Compass Works</h1>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">How Credit Lens Works</h1>
           <p className="text-gray-600 max-w-xl mx-auto">
-            A plain-English guide to what Compass does, what it looks at, and what
+            A plain-English guide to what Credit Lens does, what it looks at, and what
             its results mean — no finance background required.
           </p>
         </header>
@@ -97,21 +97,21 @@ function HowItWorks({ onBack, onTryDashboard }) {
             Traditional lenders decide whether to approve a loan mostly by looking
             at a formal credit history. That works fine for people and businesses
             who already have one — but millions of small businesses don't,
-            especially newer ones. Compass is built to give those businesses a
+            especially newer ones. Credit Lens is built to give those businesses a
             fair shot by looking at other real signals of financial health
             instead: how steady their income is, how reliably they pay existing
             bills, whether their revenue is growing, and more.
           </p>
           <p className="text-gray-700 leading-relaxed">
             You enter an applicant's annual income and requested loan amount on
-            the Dashboard, and Compass returns a credit score, an estimated
+            the Dashboard, and Credit Lens returns a credit score, an estimated
             default probability, a risk tier, and the factors that drove the
             decision — so a lender can see not just the answer, but why.
           </p>
         </section>
 
         <section className="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 space-y-4">
-          <h2 className="text-xl font-bold text-gray-800 border-b pb-2">The 7 Signals Compass Looks At</h2>
+          <h2 className="text-xl font-bold text-gray-800 border-b pb-2">The 7 Signals Credit Lens Looks At</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {SIGNALS.map((s) => (
               <div key={s.name} className="bg-gray-50 p-4 rounded-lg border border-gray-100">

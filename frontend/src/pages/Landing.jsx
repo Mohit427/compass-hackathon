@@ -8,18 +8,14 @@ function Landing({ onTryDashboard, onHowItWorks }) {
       </div>
 
       <div className="relative z-10 max-w-xl w-full backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-8 sm:p-12 text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 mb-6 text-2xl">
-          🧭
-        </div>
-
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-4">
-          Compass
+          Credit Lens
         </h1>
 
         <p className="text-indigo-100/90 text-base sm:text-lg leading-relaxed mb-8">
           Millions of small businesses get turned away from credit simply because
-          they lack a formal credit history. Compass builds a risk profile from
-          real signals — cash flow patterns, bill payment habits, business
+          they lack a formal credit history. Credit Lens builds a risk profile
+          from real signals — cash flow patterns, bill payment habits, business
           tenure — so lenders can say yes to businesses traditional scoring
           overlooks.
         </p>
