@@ -45,6 +45,11 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
 
   const handleSampleChange = (e) => {
     const selected = e.target.value;
+    if (selected === 'custom') {
+      setIncome('');
+      setLoanAmount('');
+      return;
+    }
     if (sampleApplicants[selected]) {
       setIncome(sampleApplicants[selected].income);
       setLoanAmount(sampleApplicants[selected].loanAmount);
@@ -125,6 +130,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                 <option value="" disabled>Select Applicant...</option>
                 <option value="good">Applicant A (Healthy Cash Flow)</option>
                 <option value="risky">Applicant B (Irregular Filings)</option>
+                <option value="custom">Custom Applicant (Enter Your Own)</option>
               </select>
             </div>
 
