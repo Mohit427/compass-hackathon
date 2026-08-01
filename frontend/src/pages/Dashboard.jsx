@@ -13,7 +13,6 @@ const sampleApplicants = {
   thinFile: { income: 70000, loanAmount: 18000 },
 };
 
-const TRADITIONAL_MOCK_SCORE = 580;
 const WHAT_IF_DEBOUNCE_MS = 400;
 
 const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
@@ -101,7 +100,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
       const data = await getScore(mlPayload);
       setResult(data);
       setCurrentFeatures(mlPayload);
-      setWhatIfValue(mlPayload.cash_flow_stability);
+      setWhatIfValue(mlPayload.ext_source_avg);
     } catch (err) {
       setError("Failed to fetch applicant score. Please try again.");
     } finally {
@@ -116,7 +115,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
     if (whatIfTimeoutRef.current) clearTimeout(whatIfTimeoutRef.current);
     setWhatIfLoading(true);
     whatIfTimeoutRef.current = setTimeout(async () => {
-      const updatedFeatures = { ...currentFeatures, cash_flow_stability: value };
+      const updatedFeatures = { ...currentFeatures, ext_source_avg: value };
       try {
         const data = await getScore(updatedFeatures);
         setResult(data);
@@ -259,13 +258,13 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
 
                 {showComparison && (
                   <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="border-2 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 rounded-lg p-4 text-center">
+                    <div className={`border-2 rounded-lg p-4 text-center ${result.traditional.outcome === 'Approved' ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'}`}>
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Traditional Bureau Score</p>
-                      <p className="text-3xl font-extrabold text-gray-400 dark:text-gray-500">{TRADITIONAL_MOCK_SCORE}</p>
-                      <p className="mt-2 flex items-center justify-center gap-1.5 font-bold text-sm text-red-600 dark:text-red-400">
-                        <span aria-hidden="true">✗</span> Rejected
+                      <p className="text-3xl font-extrabold text-gray-500 dark:text-gray-400">{result.traditional.score}</p>
+                      <p className={`mt-2 flex items-center justify-center gap-1.5 font-bold text-sm ${result.traditional.outcome === 'Approved' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <span aria-hidden="true">{result.traditional.outcome === 'Approved' ? '✓' : '✗'}</span> {result.traditional.outcome}
                       </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Thin file — insufficient credit history</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Based on external credit score & income only</p>
                     </div>
                     <div className={`border-2 rounded-lg p-4 text-center ${isApprovedTier(result.risk_tier) ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'}`}>
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Our Alt-Data Score</p>
@@ -319,7 +318,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                 <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      What If: Cash Flow Stability
+                      What If: External Credit Score
                     </h3>
                     <span className="text-sm font-mono text-gray-600 dark:text-gray-300">
                       {whatIfValue.toFixed(2)}
@@ -334,11 +333,11 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                     value={whatIfValue}
                     onChange={handleWhatIfChange}
                     className="w-full accent-indigo-600"
-                    aria-label="What if: cash flow stability"
+                    aria-label="What if: external credit score"
                   />
                   <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    <span>0.0 (Unstable)</span>
-                    <span>1.0 (Very Stable)</span>
+                    <span>0.0 (Weak)</span>
+                    <span>1.0 (Strong)</span>
                   </div>
                 </div>
               )}

@@ -6,11 +6,16 @@ class FeatureImpact(BaseModel):
     feature: str
     impact: float
 
+class TraditionalScore(BaseModel):
+    score: int
+    outcome: str
+
 class ScoreResponse(BaseModel):
     score: int
     default_probability: float
     risk_tier: str
     top_factors: List[FeatureImpact]
+    traditional: TraditionalScore
 
 # --- REQUEST SCHEMA (Based on Contract A) ---
 class ApplicantData(BaseModel):
