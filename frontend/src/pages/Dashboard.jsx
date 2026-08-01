@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getScore } from '../api';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import ScoreGauge from '../components/ScoreGauge';
 
 // Pre-loaded data for a smooth demo presentation
 const sampleApplicants = {
@@ -195,8 +196,8 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                 <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center border border-gray-100 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Credit Score</p>
-                  <p className="mt-2 text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">{result.score}</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Credit Score</p>
+                  <ScoreGauge score={result.score} riskTier={result.risk_tier} />
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center border border-gray-100 dark:border-gray-700">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Default Probability</p>
