@@ -1,14 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getScore } from '../api';
 import { BarChart, Bar, Cell, XAxis, YAxis, ReferenceLine, Tooltip, ResponsiveContainer } from 'recharts';
 import ScoreGauge from '../components/ScoreGauge';
-import { getRiskColor, INCREASES_RISK_HEX, DECREASES_RISK_HEX } from '../constants/riskColors';
+import TransactionTicker from '../components/TransactionTicker';
+import { getRiskColor, INCREASES_RISK_HEX, DECREASES_RISK_HEX, isApprovedTier, outcomeLabel } from '../constants/riskColors';
+import { buildSummarySentence } from '../utils/summarySentence';
 
 // Pre-loaded data for a smooth demo presentation
 const sampleApplicants = {
   good: { income: 85000, loanAmount: 15000 },
-  risky: { income: 30000, loanAmount: 45000 }
+  risky: { income: 30000, loanAmount: 45000 },
+  thinFile: { income: 70000, loanAmount: 18000 },
 };
+
+const TRADITIONAL_MOCK_SCORE = 580;
+const WHAT_IF_DEBOUNCE_MS = 400;
 
 const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
 const lerp = (healthy, risky, riskFactor) => healthy + (risky - healthy) * riskFactor;
@@ -42,6 +48,20 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [showComparison, setShowComparison] = useState(false);
+
+  // The full feature payload behind the currently-shown result, so the
+  // what-if slider can vary one feature while holding the rest fixed.
+  const [currentFeatures, setCurrentFeatures] = useState(null);
+  const [whatIfValue, setWhatIfValue] = useState(null);
+  const [whatIfLoading, setWhatIfLoading] = useState(false);
+  const whatIfTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (whatIfTimeoutRef.current) clearTimeout(whatIfTimeoutRef.current);
+    };
+  }, []);
 
   const isDark = theme === 'dark';
 
@@ -80,11 +100,33 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
       // Send the properly mapped schema to the backend
       const data = await getScore(mlPayload);
       setResult(data);
+      setCurrentFeatures(mlPayload);
+      setWhatIfValue(mlPayload.cash_flow_stability);
     } catch (err) {
       setError("Failed to fetch applicant score. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleWhatIfChange = (e) => {
+    const value = parseFloat(e.target.value);
+    setWhatIfValue(value);
+
+    if (whatIfTimeoutRef.current) clearTimeout(whatIfTimeoutRef.current);
+    setWhatIfLoading(true);
+    whatIfTimeoutRef.current = setTimeout(async () => {
+      const updatedFeatures = { ...currentFeatures, cash_flow_stability: value };
+      try {
+        const data = await getScore(updatedFeatures);
+        setResult(data);
+        setCurrentFeatures(updatedFeatures);
+      } catch (err) {
+        // Keep showing the last good result; the slider stays interactive.
+      } finally {
+        setWhatIfLoading(false);
+      }
+    }, WHAT_IF_DEBOUNCE_MS);
   };
 
   return (
@@ -129,6 +171,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                 <option value="" disabled>Select Applicant...</option>
                 <option value="good">Applicant A (Healthy Cash Flow)</option>
                 <option value="risky">Applicant B (Irregular Filings)</option>
+                <option value="thinFile">Applicant C (New to Credit — Thin File)</option>
                 <option value="custom">Custom Applicant (Enter Your Own)</option>
               </select>
             </div>
@@ -182,6 +225,9 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
             </div>
           )}
 
+          {/* Live transaction feed (mock -- gives a "live monitoring" feel) */}
+          {result && !loading && <TransactionTicker />}
+
           {/* Results Dashboard */}
           {result && !loading && (
             <section className={`bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 border-t-4 transition-colors ${getRiskColor(result.risk_tier).cardAccent} ${getRiskColor(result.risk_tier).cardTint}`}>
@@ -202,6 +248,40 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                   <p className="mt-2 text-4xl font-extrabold text-gray-900 dark:text-gray-100">{(result.default_probability * 100).toFixed(1)}%</p>
                 </div>
               </div>
+
+              <div className="mb-6">
+                <button
+                  onClick={() => setShowComparison((s) => !s)}
+                  className="w-full flex items-center justify-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {showComparison ? 'Hide' : 'Compare with'} Traditional Bureau Score
+                </button>
+
+                {showComparison && (
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="border-2 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 rounded-lg p-4 text-center">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Traditional Bureau Score</p>
+                      <p className="text-3xl font-extrabold text-gray-400 dark:text-gray-500">{TRADITIONAL_MOCK_SCORE}</p>
+                      <p className="mt-2 flex items-center justify-center gap-1.5 font-bold text-sm text-red-600 dark:text-red-400">
+                        <span aria-hidden="true">✗</span> Rejected
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Thin file — insufficient credit history</p>
+                    </div>
+                    <div className={`border-2 rounded-lg p-4 text-center ${isApprovedTier(result.risk_tier) ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'}`}>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Our Alt-Data Score</p>
+                      <p className="text-3xl font-extrabold" style={{ color: getRiskColor(result.risk_tier).hex }}>{result.score}</p>
+                      <p className={`mt-2 flex items-center justify-center gap-1.5 font-bold text-sm ${isApprovedTier(result.risk_tier) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <span aria-hidden="true">{isApprovedTier(result.risk_tier) ? '✓' : '✗'}</span> {outcomeLabel(result.risk_tier)}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Based on cash flow, bill history & more</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-center text-gray-700 dark:text-gray-300 italic mb-6">
+                {buildSummarySentence(result.top_factors, result.risk_tier)}
+              </p>
 
               <div className="mt-2">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4 text-center">SHAP Value Visualization</h3>
@@ -234,6 +314,34 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                   </ResponsiveContainer>
                 </div>
               </div>
+
+              {currentFeatures && (
+                <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                      What If: Cash Flow Stability
+                    </h3>
+                    <span className="text-sm font-mono text-gray-600 dark:text-gray-300">
+                      {whatIfValue.toFixed(2)}
+                      {whatIfLoading && <span className="text-indigo-500 dark:text-indigo-400 animate-pulse ml-1.5">updating…</span>}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={whatIfValue}
+                    onChange={handleWhatIfChange}
+                    className="w-full accent-indigo-600"
+                    aria-label="What if: cash flow stability"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <span>0.0 (Unstable)</span>
+                    <span>1.0 (Very Stable)</span>
+                  </div>
+                </div>
+              )}
 
             </section>
           )}

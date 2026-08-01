@@ -39,3 +39,13 @@ export function getRiskColor(tier) {
 // sign rather than per-card by overall tier.
 export const INCREASES_RISK_HEX = RISK_COLORS.high.hex;
 export const DECREASES_RISK_HEX = RISK_COLORS.low.hex;
+
+// Shared outcome framing: only "High" reads as a flag/rejection, Low and
+// Medium both read as an approval for summary/comparison copy.
+export function isApprovedTier(tier) {
+  return tier?.toLowerCase() !== 'high';
+}
+
+export function outcomeLabel(tier) {
+  return isApprovedTier(tier) ? 'Approved' : 'Flagged';
+}
