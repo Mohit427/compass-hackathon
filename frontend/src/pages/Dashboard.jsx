@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { getScore } from '../api';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, ReferenceLine, Tooltip, ResponsiveContainer } from 'recharts';
 import ScoreGauge from '../components/ScoreGauge';
+import { getRiskColor, INCREASES_RISK_HEX, DECREASES_RISK_HEX } from '../constants/riskColors';
 
 // Pre-loaded data for a smooth demo presentation
 const sampleApplicants = {
@@ -44,6 +45,13 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
 
   const isDark = theme === 'dark';
 
+  // Sorted once and reused for both the chart's data and its per-bar Cell
+  // colors -- Recharts matches Cells to bars positionally, so both must come
+  // from the exact same ordered array or colors end up on the wrong bars.
+  const sortedFactors = result
+    ? [...result.top_factors].sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))
+    : [];
+
   const handleSampleChange = (e) => {
     const selected = e.target.value;
     if (selected === 'custom') {
@@ -76,16 +84,6 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
       setError("Failed to fetch applicant score. Please try again.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Helper to dynamically style the risk badge
-  const getBadgeColor = (tier) => {
-    switch (tier.toLowerCase()) {
-      case 'low': return 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700';
-      case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700';
-      case 'high': return 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-600';
     }
   };
 
@@ -186,10 +184,10 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
 
           {/* Results Dashboard */}
           {result && !loading && (
-            <section className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+            <section className={`bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 border-t-4 transition-colors ${getRiskColor(result.risk_tier).cardAccent} ${getRiskColor(result.risk_tier).cardTint}`}>
               <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4 mb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Risk Breakdown</h2>
-                <span className={`px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full border ${getBadgeColor(result.risk_tier)}`}>
+                <span className={`px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full border ${getRiskColor(result.risk_tier).badge}`}>
                   Tier: {result.risk_tier}
                 </span>
               </div>
@@ -205,26 +203,18 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                 </div>
               </div>
 
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Top Contributing Factors</h3>
-                <ul className="space-y-2">
-                  {result.top_factors.map((factor, index) => (
-                    <li key={index} className="flex items-center text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded">
-                      <span className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></span>
-                      <span className="font-medium">{factor.feature}</span>
-                      <span className="ml-auto text-indigo-600 dark:text-indigo-400 font-mono text-sm">(Impact: {factor.impact})</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div className="mt-2">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4 text-center">SHAP Value Visualization</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-2">
+                  <span style={{ color: INCREASES_RISK_HEX }} className="font-semibold">Red</span> increases risk ·{' '}
+                  <span style={{ color: DECREASES_RISK_HEX }} className="font-semibold">Green</span> decreases risk
+                </p>
                 <div className="chart-container w-full h-[300px]">
                   <ResponsiveContainer>
-                    <BarChart data={result.top_factors} layout="vertical" margin={{ left: 50, right: 20 }}>
+                    <BarChart data={sortedFactors} layout="vertical" margin={{ left: 50, right: 20 }}>
                       <XAxis type="number" hide />
                       <YAxis dataKey="feature" type="category" width={150} tick={{ fill: isDark ? '#d1d5db' : '#4b5563', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <ReferenceLine x={0} stroke={isDark ? '#4b5563' : '#d1d5db'} />
                       <Tooltip
                         cursor={{ fill: isDark ? '#374151' : '#f3f4f6' }}
                         contentStyle={{
@@ -235,7 +225,11 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                           color: isDark ? '#f3f4f6' : '#111827',
                         }}
                       />
-                      <Bar dataKey="impact" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={24} />
+                      <Bar dataKey="impact" radius={4} barSize={24}>
+                        {sortedFactors.map((factor) => (
+                          <Cell key={factor.feature} fill={factor.impact >= 0 ? INCREASES_RISK_HEX : DECREASES_RISK_HEX} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
