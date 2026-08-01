@@ -1,5 +1,12 @@
 # React + Vite
 
+## Configuration
+
+`VITE_API_URL` controls which backend the app calls (see `src/api.js`).
+Defaults to `http://localhost:8000` via the committed `.env`. When deploying,
+set `VITE_API_URL` in the hosting platform's environment settings to the
+deployed backend's URL — that overrides the `.env` default at build time.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

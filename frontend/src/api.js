@@ -1,9 +1,12 @@
 // src/api.js
 
+// Set VITE_API_URL in the deployment environment to point at the deployed
+// backend; falls back to localhost for local dev.
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export const getScore = async (applicantData) => {
     try {
-        // Point this URL to Tharanesh's FastAPI server
-        const response = await fetch('http://localhost:8000/score', {
+        const response = await fetch(`${API_URL}/score`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
