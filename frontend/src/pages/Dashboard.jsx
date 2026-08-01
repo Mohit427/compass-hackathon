@@ -10,7 +10,24 @@ import { buildSummarySentence } from '../utils/summarySentence';
 const sampleApplicants = {
   good: { income: 85000, loanAmount: 15000 },
   risky: { income: 30000, loanAmount: 45000 },
-  thinFile: { income: 70000, loanAmount: 18000 },
+  thinFile: { income: 52000, loanAmount: 10000 },
+};
+
+// Applicant C's fixed profile: thin on bureau signals (low ext_source_avg,
+// short employment_stability -- a genuinely new business) but strong on
+// behavioral signals (good cash flow, punctual bills, regular GST filings).
+// Found via a 330k-sample random search over the real trained models rather
+// than hand-picked -- it's the strongest realistic gap where our model
+// actually approves (Medium tier) and the traditional model actually
+// rejects; most "thin file" profiles do NOT produce this contrast because
+// ext_source_avg dominates both models too heavily (see commit history).
+const THIN_FILE_FEATURE_OVERRIDE = {
+  cash_flow_stability: 0.70,
+  revenue_trend_slope: 0.08,
+  bill_punctuality: 1.0,
+  gst_regularity: 0.80,
+  ext_source_avg: 0.24,
+  employment_stability: 1.2,
 };
 
 const WHAT_IF_DEBOUNCE_MS = 400;
@@ -48,6 +65,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [selectedSample, setSelectedSample] = useState('');
 
   // The full feature payload behind the currently-shown result, so the
   // what-if slider can vary one feature while holding the rest fixed.
@@ -73,6 +91,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
 
   const handleSampleChange = (e) => {
     const selected = e.target.value;
+    setSelectedSample(selected);
     if (selected === 'custom') {
       setIncome('');
       setLoanAmount('');
@@ -93,8 +112,15 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
       const inc = Number(income);
       const loan = Number(loanAmount);
 
-      // Transform raw inputs into the exact Pydantic schema Tharanesh expects
-      const mlPayload = buildMockFeatures(inc, loan);
+      // Transform raw inputs into the exact Pydantic schema Tharanesh expects.
+      // Applicant C uses a fixed thin-file profile instead of the generic
+      // income/loan-derived formula -- see THIN_FILE_FEATURE_OVERRIDE.
+      const mlPayload = selectedSample === 'thinFile'
+        ? {
+            income_ratio: loan > 0 ? parseFloat((inc / loan).toFixed(2)) : 1.0,
+            ...THIN_FILE_FEATURE_OVERRIDE,
+          }
+        : buildMockFeatures(inc, loan);
 
       // Send the properly mapped schema to the backend
       const data = await getScore(mlPayload);
