@@ -15,7 +15,8 @@ FEATURES = [
     "revenue_trend_slope",
     "bill_punctuality",
     "gst_regularity",
-    "ext_source_avg"
+    "ext_source_avg",
+    "employment_stability"
 ]
 
 # ==========================================
@@ -37,7 +38,8 @@ EXAMPLE_INPUT = {
     "revenue_trend_slope": 0.65,
     "bill_punctuality": 0.95,
     "gst_regularity": 1,
-    "ext_source_avg": 0.81
+    "ext_source_avg": 0.81,
+    "employment_stability": 6.5
 }
 
 # ==========================================

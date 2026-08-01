@@ -1,47 +1,42 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
-import joblib
 import os
-data = pd.read_csv("dummy_data/features.csv")
-# print(data.head())
 
-# Separate input features and target column
-X = data.drop("target", axis=1)
+import joblib
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+
+from inference_contract import FEATURES
+
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "processed", "features.csv")
+
+data = pd.read_csv(DATA_PATH)
+
+X = data[FEATURES]
 y = data["target"]
 
-# print(X.head())
-# print(y.head())
-
-# Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
     test_size=0.2,
-    random_state=42
+    random_state=42,
+    stratify=y,
 )
 
-# print("Training samples:", len(X_train))
-# print("Testing samples:", len(X_test))
-
-# Create the Random Forest model
 model = RandomForestClassifier(
-    n_estimators=100,
-    random_state=42
+    n_estimators=150,
+    max_depth=10,
+    min_samples_leaf=25,
+    random_state=42,
+    n_jobs=-1,
 )
 
-# Train the model
 model.fit(X_train, y_train)
-# Create the artifacts folder if it doesn't exist
-os.makedirs("artifacts", exist_ok=True)
 
-# Save the trained model
-# Save the test data for evaluation
-joblib.dump(X_test, "artifacts/X_test.pkl")
-joblib.dump(y_test, "artifacts/y_test.pkl")
+os.makedirs(os.path.join(os.path.dirname(__file__), "artifacts"), exist_ok=True)
 
-print("✅ Test data saved")
-joblib.dump(model, "artifacts/model.pkl")
+joblib.dump(X_test, os.path.join(os.path.dirname(__file__), "artifacts", "X_test.pkl"))
+joblib.dump(y_test, os.path.join(os.path.dirname(__file__), "artifacts", "y_test.pkl"))
+joblib.dump(model, os.path.join(os.path.dirname(__file__), "artifacts", "model.pkl"))
 
-print("✅ Model saved to artifacts/model.pkl")
+print(f"Trained on {len(X_train):,} rows, held out {len(X_test):,} for evaluation.")
+print("Model saved to artifacts/model.pkl")

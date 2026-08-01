@@ -20,3 +20,4 @@ class ApplicantData(BaseModel):
     bill_punctuality: float
     gst_regularity: float
     ext_source_avg: float
+    employment_stability: float
