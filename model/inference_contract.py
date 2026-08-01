@@ -19,6 +19,16 @@ FEATURES = [
     "employment_stability"
 ]
 
+# Restricted feature set for the "traditional bureau" comparison model --
+# only signals a formal credit bureau would plausibly have, deliberately
+# excluding the alt-data signals (cash flow, revenue trend, bill/GST
+# regularity) that are this product's whole differentiator.
+TRADITIONAL_FEATURES = [
+    "ext_source_avg",
+    "income_ratio",
+    "employment_stability",
+]
+
 # ==========================================
 # Output Labels
 # ==========================================

@@ -1,12 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getScore } from '../api';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, ReferenceLine, Tooltip, ResponsiveContainer } from 'recharts';
+import ScoreGauge from '../components/ScoreGauge';
+import TransactionTicker from '../components/TransactionTicker';
+import { getRiskColor, INCREASES_RISK_HEX, DECREASES_RISK_HEX, isApprovedTier, outcomeLabel } from '../constants/riskColors';
+import { buildSummarySentence } from '../utils/summarySentence';
 
 // Pre-loaded data for a smooth demo presentation
 const sampleApplicants = {
   good: { income: 85000, loanAmount: 15000 },
-  risky: { income: 30000, loanAmount: 45000 }
+  risky: { income: 30000, loanAmount: 45000 },
+  thinFile: { income: 52000, loanAmount: 10000 },
 };
+
+// Applicant C's fixed profile: thin on bureau signals (low ext_source_avg,
+// short employment_stability -- a genuinely new business) but strong on
+// behavioral signals (good cash flow, punctual bills, regular GST filings).
+// Found via a 330k-sample random search over the real trained models rather
+// than hand-picked -- it's the strongest realistic gap where our model
+// actually approves (Medium tier) and the traditional model actually
+// rejects; most "thin file" profiles do NOT produce this contrast because
+// ext_source_avg dominates both models too heavily (see commit history).
+const THIN_FILE_FEATURE_OVERRIDE = {
+  cash_flow_stability: 0.70,
+  revenue_trend_slope: 0.08,
+  bill_punctuality: 1.0,
+  gst_regularity: 0.80,
+  ext_source_avg: 0.24,
+  employment_stability: 1.2,
+};
+
+const WHAT_IF_DEBOUNCE_MS = 400;
 
 const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
 const lerp = (healthy, risky, riskFactor) => healthy + (risky - healthy) * riskFactor;
@@ -40,11 +64,34 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [selectedSample, setSelectedSample] = useState('');
+
+  // The full feature payload behind the currently-shown result, so the
+  // what-if slider can vary one feature while holding the rest fixed.
+  const [currentFeatures, setCurrentFeatures] = useState(null);
+  const [whatIfValue, setWhatIfValue] = useState(null);
+  const [whatIfLoading, setWhatIfLoading] = useState(false);
+  const whatIfTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (whatIfTimeoutRef.current) clearTimeout(whatIfTimeoutRef.current);
+    };
+  }, []);
 
   const isDark = theme === 'dark';
 
+  // Sorted once and reused for both the chart's data and its per-bar Cell
+  // colors -- Recharts matches Cells to bars positionally, so both must come
+  // from the exact same ordered array or colors end up on the wrong bars.
+  const sortedFactors = result
+    ? [...result.top_factors].sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))
+    : [];
+
   const handleSampleChange = (e) => {
     const selected = e.target.value;
+    setSelectedSample(selected);
     if (selected === 'custom') {
       setIncome('');
       setLoanAmount('');
@@ -65,12 +112,21 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
       const inc = Number(income);
       const loan = Number(loanAmount);
 
-      // Transform raw inputs into the exact Pydantic schema Tharanesh expects
-      const mlPayload = buildMockFeatures(inc, loan);
+      // Transform raw inputs into the exact Pydantic schema Tharanesh expects.
+      // Applicant C uses a fixed thin-file profile instead of the generic
+      // income/loan-derived formula -- see THIN_FILE_FEATURE_OVERRIDE.
+      const mlPayload = selectedSample === 'thinFile'
+        ? {
+            income_ratio: loan > 0 ? parseFloat((inc / loan).toFixed(2)) : 1.0,
+            ...THIN_FILE_FEATURE_OVERRIDE,
+          }
+        : buildMockFeatures(inc, loan);
 
       // Send the properly mapped schema to the backend
       const data = await getScore(mlPayload);
       setResult(data);
+      setCurrentFeatures(mlPayload);
+      setWhatIfValue(mlPayload.ext_source_avg);
     } catch (err) {
       setError("Failed to fetch applicant score. Please try again.");
     } finally {
@@ -78,14 +134,24 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
     }
   };
 
-  // Helper to dynamically style the risk badge
-  const getBadgeColor = (tier) => {
-    switch (tier.toLowerCase()) {
-      case 'low': return 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700';
-      case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700';
-      case 'high': return 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-600';
-    }
+  const handleWhatIfChange = (e) => {
+    const value = parseFloat(e.target.value);
+    setWhatIfValue(value);
+
+    if (whatIfTimeoutRef.current) clearTimeout(whatIfTimeoutRef.current);
+    setWhatIfLoading(true);
+    whatIfTimeoutRef.current = setTimeout(async () => {
+      const updatedFeatures = { ...currentFeatures, ext_source_avg: value };
+      try {
+        const data = await getScore(updatedFeatures);
+        setResult(data);
+        setCurrentFeatures(updatedFeatures);
+      } catch (err) {
+        // Keep showing the last good result; the slider stays interactive.
+      } finally {
+        setWhatIfLoading(false);
+      }
+    }, WHAT_IF_DEBOUNCE_MS);
   };
 
   return (
@@ -130,6 +196,7 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                 <option value="" disabled>Select Applicant...</option>
                 <option value="good">Applicant A (Healthy Cash Flow)</option>
                 <option value="risky">Applicant B (Irregular Filings)</option>
+                <option value="thinFile">Applicant C (New to Credit — Thin File)</option>
                 <option value="custom">Custom Applicant (Enter Your Own)</option>
               </select>
             </div>
@@ -183,20 +250,23 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
             </div>
           )}
 
+          {/* Live transaction feed (mock -- gives a "live monitoring" feel) */}
+          {result && !loading && <TransactionTicker />}
+
           {/* Results Dashboard */}
           {result && !loading && (
-            <section className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+            <section className={`bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 border-t-4 transition-colors ${getRiskColor(result.risk_tier).cardAccent} ${getRiskColor(result.risk_tier).cardTint}`}>
               <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4 mb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Risk Breakdown</h2>
-                <span className={`px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full border ${getBadgeColor(result.risk_tier)}`}>
+                <span className={`px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full border ${getRiskColor(result.risk_tier).badge}`}>
                   Tier: {result.risk_tier}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                 <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center border border-gray-100 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Credit Score</p>
-                  <p className="mt-2 text-4xl font-extrabold text-indigo-600 dark:text-indigo-400">{result.score}</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Credit Score</p>
+                  <ScoreGauge score={result.score} riskTier={result.risk_tier} />
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg text-center border border-gray-100 dark:border-gray-700">
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Default Probability</p>
@@ -205,25 +275,51 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
               </div>
 
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">Top Contributing Factors</h3>
-                <ul className="space-y-2">
-                  {result.top_factors.map((factor, index) => (
-                    <li key={index} className="flex items-center text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded">
-                      <span className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></span>
-                      <span className="font-medium">{factor.feature}</span>
-                      <span className="ml-auto text-indigo-600 dark:text-indigo-400 font-mono text-sm">(Impact: {factor.impact})</span>
-                    </li>
-                  ))}
-                </ul>
+                <button
+                  onClick={() => setShowComparison((s) => !s)}
+                  className="w-full flex items-center justify-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  {showComparison ? 'Hide' : 'Compare with'} Traditional Bureau Score
+                </button>
+
+                {showComparison && (
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className={`border-2 rounded-lg p-4 text-center ${result.traditional.outcome === 'Approved' ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'}`}>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Traditional Bureau Score</p>
+                      <p className="text-3xl font-extrabold text-gray-500 dark:text-gray-400">{result.traditional.score}</p>
+                      <p className={`mt-2 flex items-center justify-center gap-1.5 font-bold text-sm ${result.traditional.outcome === 'Approved' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <span aria-hidden="true">{result.traditional.outcome === 'Approved' ? '✓' : '✗'}</span> {result.traditional.outcome}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Based on external credit score & income only</p>
+                    </div>
+                    <div className={`border-2 rounded-lg p-4 text-center ${isApprovedTier(result.risk_tier) ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20' : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'}`}>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Our Alt-Data Score</p>
+                      <p className="text-3xl font-extrabold" style={{ color: getRiskColor(result.risk_tier).hex }}>{result.score}</p>
+                      <p className={`mt-2 flex items-center justify-center gap-1.5 font-bold text-sm ${isApprovedTier(result.risk_tier) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <span aria-hidden="true">{isApprovedTier(result.risk_tier) ? '✓' : '✗'}</span> {outcomeLabel(result.risk_tier)}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Based on cash flow, bill history & more</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+              <p className="text-center text-gray-700 dark:text-gray-300 italic mb-6">
+                {buildSummarySentence(result.top_factors, result.risk_tier)}
+              </p>
+
+              <div className="mt-2">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4 text-center">SHAP Value Visualization</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-2">
+                  <span style={{ color: INCREASES_RISK_HEX }} className="font-semibold">Red</span> increases risk ·{' '}
+                  <span style={{ color: DECREASES_RISK_HEX }} className="font-semibold">Green</span> decreases risk
+                </p>
                 <div className="chart-container w-full h-[300px]">
                   <ResponsiveContainer>
-                    <BarChart data={result.top_factors} layout="vertical" margin={{ left: 50, right: 20 }}>
+                    <BarChart data={sortedFactors} layout="vertical" margin={{ left: 50, right: 20 }}>
                       <XAxis type="number" hide />
                       <YAxis dataKey="feature" type="category" width={150} tick={{ fill: isDark ? '#d1d5db' : '#4b5563', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <ReferenceLine x={0} stroke={isDark ? '#4b5563' : '#d1d5db'} />
                       <Tooltip
                         cursor={{ fill: isDark ? '#374151' : '#f3f4f6' }}
                         contentStyle={{
@@ -234,11 +330,43 @@ function Dashboard({ onBack, theme, onToggleTheme }) {
                           color: isDark ? '#f3f4f6' : '#111827',
                         }}
                       />
-                      <Bar dataKey="impact" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={24} />
+                      <Bar dataKey="impact" radius={4} barSize={24}>
+                        {sortedFactors.map((factor) => (
+                          <Cell key={factor.feature} fill={factor.impact >= 0 ? INCREASES_RISK_HEX : DECREASES_RISK_HEX} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
+
+              {currentFeatures && (
+                <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                      What If: External Credit Score
+                    </h3>
+                    <span className="text-sm font-mono text-gray-600 dark:text-gray-300">
+                      {whatIfValue.toFixed(2)}
+                      {whatIfLoading && <span className="text-indigo-500 dark:text-indigo-400 animate-pulse ml-1.5">updating…</span>}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={whatIfValue}
+                    onChange={handleWhatIfChange}
+                    className="w-full accent-indigo-600"
+                    aria-label="What if: external credit score"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <span>0.0 (Weak)</span>
+                    <span>1.0 (Strong)</span>
+                  </div>
+                </div>
+              )}
 
             </section>
           )}
